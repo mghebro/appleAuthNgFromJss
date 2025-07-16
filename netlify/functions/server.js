@@ -1,4 +1,4 @@
-const AppleAuth = require('./src/app/Auth/apple-auth'); 
+const AppleAuth = require('../../src/app/Auth/apple-auth/apple-auth'); 
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
