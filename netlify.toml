@@ -17,3 +17,6 @@
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = false
+
+[build.environment]
+  NODE_VERSION = "20"
