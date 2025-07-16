@@ -1,24 +1,27 @@
-const AppleAuth = require('../../src/app/Auth/apple-auth/apple-auth'); 
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
+const AppleAuth = require("../../src/app/Auth/apple-auth/apple-auth");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 const config = {
-  client_id: 'com.mghebro.si',
-  team_id: 'TTFPHSNRGQ',
-  redirect_uri: 'https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server',
-  key_id: 'ZR62KJ2BYT',
-  scope: 'name email',
+  client_id: "com.mghebro.si",
+  team_id: "TTFPHSNRGQ",
+  redirect_uri:
+    "https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server",
+  key_id: "ZR62KJ2BYT",
+  scope: "name email",
 };
 
-const privateKey = process.env.APPLE_PRIVATE_KEY || ''; // Load from env
-const appleAuth = new AppleAuth(config, privateKey, 'text');
+const privateKey = process.env.APPLE_PRIVATE_KEY || ""; // Load from env
+const appleAuth = new AppleAuth(config, privateKey, "text");
 
-const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || 'https://98be9a6964b0.ngrok-free.app/api/AppleService/auth/apple-callback';
+const CSHARP_BACKEND_URL =
+  process.env.CSHARP_BACKEND_URL ||
+  "https://98be9a6964b0.ngrok-free.app/api/AppleService/auth/apple-callback";
 
 exports.handler = async (event, context) => {
-  if (event.httpMethod === 'POST') {
+  if (event.httpMethod === "POST") {
     try {
-      const body = JSON.parse(event.body || '{}');
+      const body = JSON.parse(event.body || "{}");
       const { code, id_token, state, user } = body;
 
       const tokenResponse = await appleAuth.accessToken(code);
@@ -26,13 +29,16 @@ exports.handler = async (event, context) => {
       const decodedIdToken = jwt.decode(tokenResponse.id_token);
       const userAppleId = decodedIdToken.sub;
       const userEmail = decodedIdToken.email;
-      const isPrivateEmail = userEmail?.includes('@privaterelay.appleid.com') || false;
+      const isPrivateEmail =
+        userEmail?.includes("@privaterelay.appleid.com") || false;
 
       let userName = null;
       if (user) {
         const parsedUser = JSON.parse(user);
         if (parsedUser.name) {
-          userName = `${parsedUser.name.firstName || ''} ${parsedUser.name.lastName || ''}`.trim();
+          userName = `${parsedUser.name.firstName || ""} ${
+            parsedUser.name.lastName || ""
+          }`.trim();
         }
       }
 
@@ -46,30 +52,32 @@ exports.handler = async (event, context) => {
         emailVerified: decodedIdToken.email_verified || false,
         authTime: new Date(decodedIdToken.auth_time * 1000).toISOString(),
         tokenType: tokenResponse.token_type,
-        expiresIn: tokenResponse.expires_in
+        expiresIn: tokenResponse.expires_in,
       };
 
       const response = await axios.post(CSHARP_BACKEND_URL, authRequest, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json" },
       });
 
-      const frontendUrl = 'https://mghebro-auth-test.netlify.app';
+      const frontendUrl = "https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server";
       const accessToken = response.data.accessToken || response.data.token;
-      const successUrl = `${frontendUrl}/success.html?token=${accessToken}&email=${encodeURIComponent(response.data.email || '')}`;
+      const successUrl = `${frontendUrl}/success.html?token=${accessToken}&email=${encodeURIComponent(
+        response.data.email || ""
+      )}`;
 
       return {
         statusCode: 302,
         headers: {
-          Location: successUrl
+          Location: successUrl,
         },
       };
     } catch (error) {
       return {
         statusCode: 500,
         body: JSON.stringify({
-          message: 'Server error during Apple auth callback',
+          message: "Server error during Apple auth callback",
           error: error.message,
-          stack: error.stack
+          stack: error.stack,
         }),
       };
     }
@@ -77,6 +85,6 @@ exports.handler = async (event, context) => {
 
   return {
     statusCode: 405,
-    body: 'Method Not Allowed'
+    body: "Method Not Allowed",
   };
 };

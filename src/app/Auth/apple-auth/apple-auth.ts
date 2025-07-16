@@ -12,7 +12,7 @@ export class AppleAuth implements OnInit {
     AppleID.auth.init({
       clientId: 'com.mghebro.si',
       scope: 'name email',
-      redirectURI: 'https://mghebro-auth-test.netlify.app/.netlify/functions/server',
+      redirectURI: 'https://mghebro-auth-test.netlify.app/netlify/functions/server',
       usePopup: true,
     });
   }
