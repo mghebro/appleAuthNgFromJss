@@ -1,6 +1,9 @@
 [build]
-  command = "npm install && npm run build" 
-  publish = "dist/appleAuthFromJs/browser" 
+  command = "npm ci && npm run build --if-present"
+  publish = "dist/appleAuthFromJs/browser"
+
+[build.environment]
+  NODE_VERSION = "20" 
 
 [functions]
   directory = "netlify/functions"
@@ -16,7 +19,4 @@
   from = "/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
-  force = false
-
-[build.environment]
-  NODE_VERSION = "20"
+  force = falsen
