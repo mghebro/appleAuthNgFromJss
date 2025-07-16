@@ -11,7 +11,7 @@
 
 [[redirects]]
   from = "/auth/apple/callback"
-  to = "/.netlify/functions/server/auth/apple/callback"
+  to = "/netlify/functions/server/auth/apple/callback"
   status = 200
   force = true
 
