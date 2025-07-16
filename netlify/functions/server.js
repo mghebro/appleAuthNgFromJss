@@ -11,7 +11,7 @@ const config = {
 };
 
 const privateKey = process.env.APPLE_PRIVATE_KEY || "";
-const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://98be9a6964b0.ngrok-free.app/api/AppleService/auth/apple-callback";
+const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://1e94d017035f.ngrok-free.app /api/AppleService/auth/apple-callback";
 
 // Helper function to generate Apple client secret
 function generateClientSecret(teamId, clientId, keyId, privateKey) {
