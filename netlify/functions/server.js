@@ -6,7 +6,7 @@ const config = {
   client_id: "com.mghebro.si",
   team_id: "TTFPHSNRGQ",
   redirect_uri:
-    "https://mghebro-auth-test-angular.netlify.app/netlify/functions/server",
+    "https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server",
   key_id: "ZR62KJ2BYT",
   scope: "name email",
 };

@@ -12,7 +12,7 @@ export class AppleAuth implements OnInit {
     AppleID.auth.init({
       clientId: 'com.mghebro.si',
       scope: 'name email',
-      redirectURI: 'https://mghebro-auth-test.netlify.app/netlify/functions/server',
+      redirectURI: 'https://mghebro-auth-test.netlify.app/.netlify/functions/server',
       usePopup: true,
     });
   }
@@ -25,7 +25,7 @@ export class AppleAuth implements OnInit {
 
         console.log('✅ Apple sign-in successful:', response);
 
-        fetch('/netlify/functions/server', {
+        fetch('/.netlify/functions/server', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
