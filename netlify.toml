@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && npm run build --if-present"
+  command = "npm install && npm run build"
   publish = "dist/appleAuthFromJs/browser/"
 
 [build.environment]

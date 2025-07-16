@@ -45,6 +45,7 @@ export class AppleAuth implements OnInit {
           if (response.redirected) {
             // Handle redirect response
             window.location.href = response.url;
+            return null;
           } else {
             return response.json();
           }
