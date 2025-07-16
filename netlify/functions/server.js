@@ -59,7 +59,7 @@ exports.handler = async (event, context) => {
         headers: { "Content-Type": "application/json" },
       });
 
-      const frontendUrl = "https://mghebro-auth-test-angular.netlify.app/netlify/functions/server";
+      const frontendUrl = "https://mghebro-auth-test.netlify.app";
       const accessToken = response.data.accessToken || response.data.token;
       const successUrl = `${frontendUrl}/success.html?token=${accessToken}&email=${encodeURIComponent(
         response.data.email || ""
