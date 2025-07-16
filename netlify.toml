@@ -1,6 +1,6 @@
 [build]
-  command = "npm install" 
-  publish = "/" 
+  command = "npm install && npm run build" 
+  publish = "dist/appleAuthFromJs/browser" 
 
 [functions]
   directory = "netlify/functions"
