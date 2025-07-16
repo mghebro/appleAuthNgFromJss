@@ -1,5 +1,6 @@
-import { Component ,OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 declare const AppleID: any;
+
 @Component({
   selector: 'app-apple-auth',
   standalone: false,
@@ -12,7 +13,8 @@ export class AppleAuth implements OnInit {
     AppleID.auth.init({
       clientId: 'com.mghebro.si',
       scope: 'name email',
-      redirectURI: 'https://mghebro-auth-test.netlify.app/.netlify/functions/server',
+      // Fix: Use the exact redirect URI that matches your backend
+      redirectURI: 'https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server',
       usePopup: true,
     });
   }
@@ -25,25 +27,46 @@ export class AppleAuth implements OnInit {
 
         console.log('✅ Apple sign-in successful:', response);
 
-        fetch('/.netlify/functions/server', {
+        // Fix: Send to the correct endpoint
+        fetch('https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
           body: JSON.stringify({
             code,
             id_token,
             state,
-            user: JSON.stringify(user)
+            user: user ? JSON.stringify(user) : null
           })
         })
-        .then(res => res.text())
-        .then(data => {
-          // This may redirect or return HTML (like auth-success.html)
-          document.write(data);
+        .then(response => {
+          if (response.redirected) {
+            // Handle redirect response
+            window.location.href = response.url;
+          } else {
+            return response.json();
+          }
         })
-        .catch(err => console.error('❌ Error sending to Netlify function:', err));
+        .then(data => {
+          if (data) {
+            console.log('Auth response:', data);
+            // Handle successful authentication
+            if (data.token) {
+              localStorage.setItem('token', data.token);
+              window.location.href = '/dashboard'; // or wherever you want to redirect
+            }
+          }
+        })
+        .catch(err => {
+          console.error('❌ Error sending to Netlify function:', err);
+          alert('Authentication failed. Please try again.');
+        });
       },
       (err: any) => {
         console.error('❌ Apple sign-in failed:', err);
+        alert('Apple sign-in failed. Please try again.');
       }
     );
   }

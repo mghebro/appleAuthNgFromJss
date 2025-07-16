@@ -10,13 +10,12 @@
   node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/auth/apple/callback"
-  to = "/netlify/functions/server/auth/apple/callback"
+  from = "/.netlify/functions/server"
+  to = "/.netlify/functions/server"
   status = 200
   force = true
 
 [[redirects]]
   from = "/*"
-  to = "/netlify/functions/server/:splat"
+  to = "/index.html"
   status = 200
-  force = false
