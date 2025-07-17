@@ -15,7 +15,7 @@ const config = {
 const privateKey = process.env.APPLE_PRIVATE_KEY || "";
 
 // C# Backend URL
-const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://98be9a6964b0.ngrok-free.app/api/AppleService/auth/apple-callback";
+const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://21060af79b92.ngrok-free.app/api/AppleService/auth/apple-callback";
 
 // Helper function to validate environment variables
 function validateEnvironment() {
