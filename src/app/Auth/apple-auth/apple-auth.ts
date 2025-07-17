@@ -24,6 +24,20 @@ interface AuthError {
   error?: string;
 }
 
+interface BackendAuthResponse {
+  success: boolean;
+  data?: {
+    accessToken?: string;
+    token?: string;
+    email?: string;
+    name?: string;
+    user?: any;
+  };
+  redirectUrl?: string;
+  message?: string;
+  error?: string;
+}
+
 @Component({
   selector: 'app-apple-auth',
   standalone: false,
@@ -34,8 +48,9 @@ export class AppleAuth implements OnInit, OnDestroy {
   isLoading = false;
   error: string | null = null;
   
-  private readonly NETLIFY_FUNCTION_URL = 'https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server';
-  private readonly FRONTEND_URL = 'https://mghebro-auth-test.netlify.app';
+  // Use the same callback URL as in the appleAuthJs project
+  private readonly CALLBACK_URL = 'https://mghebro-auth-test-angular.netlify.app/auth/apple/callback';
+  private readonly FRONTEND_URL = 'https://mghebro-auth-test-angular.netlify.app';
 
   constructor(private router: Router) {}
 
@@ -53,7 +68,7 @@ export class AppleAuth implements OnInit, OnDestroy {
         AppleID.auth.init({
           clientId: 'com.mghebro.si',
           scope: 'name email',
-          redirectURI: this.NETLIFY_FUNCTION_URL,
+          redirectURI: this.CALLBACK_URL,
           usePopup: true,
           state: this.generateState()
         });
@@ -120,7 +135,7 @@ export class AppleAuth implements OnInit, OnDestroy {
     console.log('📤 Sending auth data to backend...');
 
     try {
-      const backendResponse = await fetch(this.NETLIFY_FUNCTION_URL, {
+      const backendResponse = await fetch(this.CALLBACK_URL, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -131,25 +146,22 @@ export class AppleAuth implements OnInit, OnDestroy {
 
       console.log('📥 Backend response status:', backendResponse.status);
 
-      if (backendResponse.redirected) {
-        console.log('↩️ Redirecting to:', backendResponse.url);
-        window.location.href = backendResponse.url;
-        return;
-      }
-
       if (!backendResponse.ok) {
         const errorData: AuthError = await backendResponse.json();
         throw new Error(errorData.message || `Server error: ${backendResponse.status}`);
       }
 
-      const data = await backendResponse.json();
+      const data: BackendAuthResponse = await backendResponse.json();
       console.log('✅ Auth response received:', data);
 
       // Handle successful authentication
       if (data.success && data.data) {
-        this.handleSuccessfulAuth(data.data);
+        this.handleSuccessfulAuth(data.data, data.redirectUrl);
+      } else if (data.redirectUrl) {
+        // If we have a redirect URL, use it
+        window.location.href = data.redirectUrl;
       } else {
-        throw new Error('Invalid response from server');
+        throw new Error(data.message || 'Invalid response from server');
       }
 
     } catch (error: any) {
@@ -165,7 +177,7 @@ export class AppleAuth implements OnInit, OnDestroy {
     }
   }
 
-  private handleSuccessfulAuth(data: any): void {
+  private handleSuccessfulAuth(data: any, redirectUrl?: string): void {
     console.log('🎉 Authentication successful');
     
     // Store token if provided
@@ -176,12 +188,21 @@ export class AppleAuth implements OnInit, OnDestroy {
     }
 
     // Store user info
-    if (data.user) {
-      sessionStorage.setItem('userInfo', JSON.stringify(data.user));
+    if (data.user || data.email) {
+      const userInfo = {
+        email: data.email,
+        name: data.name,
+        ...data.user
+      };
+      sessionStorage.setItem('userInfo', JSON.stringify(userInfo));
     }
 
-    // Redirect to dashboard or home page
-    this.redirectToApp(data);
+    // Use provided redirect URL or construct one
+    if (redirectUrl) {
+      window.location.href = redirectUrl;
+    } else {
+      this.redirectToApp(data);
+    }
   }
 
   private redirectToApp(data: any): void {

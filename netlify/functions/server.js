@@ -15,7 +15,7 @@ const config = {
 const privateKey = process.env.APPLE_PRIVATE_KEY || "";
 
 // C# Backend URL
-const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://21060af79b92.ngrok-free.app/api/AppleService/auth/apple-callback";
+const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://98be9a6964b0.ngrok-free.app/api/AppleService/auth/apple-callback";
 
 // Helper function to validate environment variables
 function validateEnvironment() {
@@ -179,18 +179,15 @@ function parseUserData(user) {
   }
 }
 
-// Helper function to create redirect URL
-function createRedirectUrl(data, isError = false) {
-  const frontendUrl = process.env.FRONTEND_URL || "https://mghebro-auth-test.netlify.app";
-  
+function createRedirectUrl(data, isError = false, frontendUrl = "https://auth-test.netlify.app") {
   if (isError) {
     return `${frontendUrl}/error.html?error=${encodeURIComponent(data.message)}`;
   }
-  
+
   const accessToken = data.accessToken || data.token || '';
   const email = data.email || '';
   const name = data.name || '';
-  
+
   return `${frontendUrl}/success.html?token=${encodeURIComponent(accessToken)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
 }
 
