@@ -9,6 +9,27 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Redirect Apple auth callback to function
+[[redirects]]
+  from = "/auth/apple/callback"
+  to = "/.netlify/functions/server/auth/apple/callback"
+  status = 200
+  force = true
+
+# Test endpoint
+[[redirects]]
+  from = "/test"
+  to = "/.netlify/functions/server/test"
+  status = 200
+  force = true
+
+# Health check endpoint
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/server"
+  status = 200
+  force = true
+
 # Redirect all non-function requests to index.html for Angular SPA routing
 [[redirects]]
   from = "/*"

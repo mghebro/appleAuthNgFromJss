@@ -4,15 +4,18 @@ const axios = require("axios");
 
 // Apple Auth configuration
 const config = {
-  client_id: "com.mghebro.si",
-  team_id: "TTFPHSNRGQ",
-  redirect_uri: "https://mghebro-auth-test-angular.netlify.app/.netlify/functions/server",
-  key_id: "ZR62KJ2BYT",
+  client_id: process.env.APPLE_CLIENT_ID || "com.mghebro.si",
+  team_id: process.env.APPLE_TEAM_ID || "TTFPHSNRGQ",
+  redirect_uri: process.env.APPLE_REDIRECT_URI || "https://mghebro-auth-test-angular.netlify.app/auth/apple/callback",
+  key_id: process.env.APPLE_KEY_ID || "ZR62KJ2BYT",
   scope: "name email",
 };
 
+// Get the private key from environment variable
 const privateKey = process.env.APPLE_PRIVATE_KEY || "";
-const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://1e94d017035f.ngrok-free.app/api/AppleService/auth/apple-callback";
+
+// C# Backend URL
+const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://98be9a6964b0.ngrok-free.app/api/AppleService/auth/apple-callback";
 
 // Helper function to validate environment variables
 function validateEnvironment() {
@@ -127,6 +130,7 @@ async function sendToBackend(authRequest) {
       headers: { 
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'User-Agent': 'AppleAuth-NodeJS/1.0',
         'ngrok-skip-browser-warning': 'true' // For ngrok
       },
       timeout: 15000 // 15 second timeout
@@ -177,13 +181,13 @@ function parseUserData(user) {
 
 // Helper function to create redirect URL
 function createRedirectUrl(data, isError = false) {
-  const frontendUrl = "https://mghebro-auth-test.netlify.app";
+  const frontendUrl = process.env.FRONTEND_URL || "https://mghebro-auth-test.netlify.app";
   
   if (isError) {
     return `${frontendUrl}/error.html?error=${encodeURIComponent(data.message)}`;
   }
   
-  const accessToken = data.accessToken || data.token;
+  const accessToken = data.accessToken || data.token || '';
   const email = data.email || '';
   const name = data.name || '';
   
@@ -229,24 +233,47 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Handle GET requests (health check)
+  // Route handling based on path
+  const path = event.path.replace('/.netlify/functions/server', '');
+  
+  // Handle GET requests
   if (event.httpMethod === 'GET') {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        message: 'Apple auth service is running',
-        config: {
-          client_id: config.client_id,
-          redirect_uri: config.redirect_uri,
-          backend_url: CSHARP_BACKEND_URL
-        }
-      }),
-    };
+    if (path === '' || path === '/') {
+      // Health check endpoint
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: 'Apple auth service is running',
+          config: {
+            client_id: config.client_id,
+            redirect_uri: config.redirect_uri,
+            backend_url: CSHARP_BACKEND_URL
+          }
+        }),
+      };
+    }
+    
+    if (path === '/test') {
+      // Test endpoint
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ 
+          message: "Server is working", 
+          timestamp: new Date().toISOString(),
+          config: {
+            client_id: config.client_id,
+            redirect_uri: config.redirect_uri,
+            csharp_backend_url: CSHARP_BACKEND_URL
+          }
+        }),
+      };
+    }
   }
 
-  // Handle POST requests (Apple auth callback)
-  if (event.httpMethod === 'POST') {
+  // Handle POST requests
+  if (event.httpMethod === 'POST' && path === '/auth/apple/callback') {
     try {
       const body = JSON.parse(event.body || '{}');
       const { code, id_token, state, user } = body;
@@ -292,8 +319,6 @@ exports.handler = async (event, context) => {
 
       // Prepare request for C# backend
       const authRequest = {
-        code: code,
-        redirectUri: config.redirect_uri,
         appleId: userAppleId,
         email: userEmail,
         name: userName,
@@ -321,12 +346,15 @@ exports.handler = async (event, context) => {
       if (backendResponse) {
         const redirectUrl = createRedirectUrl(backendResponse);
         
+        // Return JSON response instead of redirect for Angular app
         return {
-          statusCode: 302,
-          headers: {
-            ...headers,
-            Location: redirectUrl,
-          },
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            data: backendResponse,
+            redirectUrl: redirectUrl
+          }),
         };
       } else {
         throw new Error('Empty response from backend');
@@ -337,13 +365,14 @@ exports.handler = async (event, context) => {
       
       // Handle specific error cases
       if (error.message.includes('User already exists')) {
-        const redirectUrl = createRedirectUrl({ message: 'User already exists' }, true);
         return {
-          statusCode: 302,
-          headers: {
-            ...headers,
-            Location: redirectUrl,
-          },
+          statusCode: 409,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            message: 'User already exists',
+            error: error.message
+          }),
         };
       }
 
@@ -352,6 +381,7 @@ exports.handler = async (event, context) => {
           statusCode: 504,
           headers,
           body: JSON.stringify({
+            success: false,
             message: "Backend service timeout",
             error: "The authentication service is temporarily unavailable"
           }),
@@ -362,6 +392,7 @@ exports.handler = async (event, context) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({
+          success: false,
           message: "Authentication failed",
           error: error.message,
           timestamp: new Date().toISOString()
