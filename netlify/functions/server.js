@@ -1,4 +1,3 @@
-// netlify/functions/server.js
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 
@@ -41,14 +40,12 @@ function generateClientSecret(teamId, clientId, keyId, privateKey) {
       throw new Error('Private key is required');
     }
     
-    // Clean the private key - handle both formats
     let cleanPrivateKey = privateKey
       .replace(/-----BEGIN PRIVATE KEY-----/g, '')
       .replace(/-----END PRIVATE KEY-----/g, '')
       .replace(/\\n/g, '\n')
       .replace(/\s/g, '');
     
-    // Convert to buffer
     const keyBuffer = Buffer.from(cleanPrivateKey, 'base64');
     
     const now = Math.floor(Date.now() / 1000);
@@ -56,7 +53,7 @@ function generateClientSecret(teamId, clientId, keyId, privateKey) {
     const payload = {
       iss: teamId,
       iat: now,
-      exp: now + (6 * 30 * 24 * 60 * 60), // 6 months
+      exp: now + (6 * 30 * 24 * 60 * 60), 
       aud: 'https://appleid.apple.com',
       sub: clientId
     };
@@ -181,14 +178,14 @@ function parseUserData(user) {
 
 function createRedirectUrl(data, isError = false, frontendUrl = "https://auth-test.netlify.app") {
   if (isError) {
-    return `${frontendUrl}/error.html?error=${encodeURIComponent(data.message)}`;
+    return `${frontendUrl}/public/error.html?error=${encodeURIComponent(data.message)}`;
   }
 
   const accessToken = data.accessToken || data.token || '';
   const email = data.email || '';
   const name = data.name || '';
 
-  return `${frontendUrl}/success.html?token=${encodeURIComponent(accessToken)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+  return `${frontendUrl}/public/success.html?token=${encodeURIComponent(accessToken)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
 }
 
 // Main handler function

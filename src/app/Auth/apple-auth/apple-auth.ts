@@ -1,4 +1,3 @@
-// src/app/Auth/apple-auth/apple-auth.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 
@@ -48,7 +47,6 @@ export class AppleAuth implements OnInit, OnDestroy {
   isLoading = false;
   error: string | null = null;
   
-  // Use the same callback URL as in the appleAuthJs project
   private readonly CALLBACK_URL = 'https://mghebro-auth-test-angular.netlify.app/auth/apple/callback';
   private readonly FRONTEND_URL = 'https://mghebro-auth-test-angular.netlify.app';
 
@@ -59,7 +57,6 @@ export class AppleAuth implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Clean up if needed
   }
 
   private initializeAppleAuth(): void {
@@ -95,7 +92,7 @@ export class AppleAuth implements OnInit, OnDestroy {
     this.error = null;
 
     try {
-      console.log('🍎 Starting Apple sign-in...');
+      console.log(' Starting Apple sign-in...');
       
       const response: AppleAuthResponse = await AppleID.auth.signIn();
       
@@ -109,7 +106,7 @@ export class AppleAuth implements OnInit, OnDestroy {
       await this.handleAppleResponse(response);
       
     } catch (error: any) {
-      console.error('❌ Apple sign-in failed:', error);
+      console.error(' Apple sign-in failed:', error);
       
       if (error.error === 'popup_closed_by_user') {
         this.error = 'Sign-in was cancelled';
@@ -132,7 +129,7 @@ export class AppleAuth implements OnInit, OnDestroy {
       user: user ? JSON.stringify(user) : null
     };
 
-    console.log('📤 Sending auth data to backend...');
+    console.log(' Sending auth data to backend...');
 
     try {
       const backendResponse = await fetch(this.CALLBACK_URL, {
@@ -144,7 +141,7 @@ export class AppleAuth implements OnInit, OnDestroy {
         body: JSON.stringify(payload)
       });
 
-      console.log('📥 Backend response status:', backendResponse.status);
+      console.log(' Backend response status:', backendResponse.status);
 
       if (!backendResponse.ok) {
         const errorData: AuthError = await backendResponse.json();
@@ -152,13 +149,12 @@ export class AppleAuth implements OnInit, OnDestroy {
       }
 
       const data: BackendAuthResponse = await backendResponse.json();
-      console.log('✅ Auth response received:', data);
+      console.log(' Auth response received:', data);
 
       // Handle successful authentication
       if (data.success && data.data) {
         this.handleSuccessfulAuth(data.data, data.redirectUrl);
       } else if (data.redirectUrl) {
-        // If we have a redirect URL, use it
         window.location.href = data.redirectUrl;
       } else {
         throw new Error(data.message || 'Invalid response from server');
@@ -180,10 +176,8 @@ export class AppleAuth implements OnInit, OnDestroy {
   private handleSuccessfulAuth(data: any, redirectUrl?: string): void {
     console.log('🎉 Authentication successful');
     
-    // Store token if provided
     if (data.accessToken || data.token) {
       const token = data.accessToken || data.token;
-      // Note: In a real app, consider using a more secure storage method
       sessionStorage.setItem('authToken', token);
     }
 
@@ -197,7 +191,6 @@ export class AppleAuth implements OnInit, OnDestroy {
       sessionStorage.setItem('userInfo', JSON.stringify(userInfo));
     }
 
-    // Use provided redirect URL or construct one
     if (redirectUrl) {
       window.location.href = redirectUrl;
     } else {
