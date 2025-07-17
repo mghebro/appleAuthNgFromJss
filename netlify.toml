@@ -9,13 +9,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[[redirects]]
-  from = "/.netlify/functions/server"
-  to = "/.netlify/functions/server"
-  status = 200
-  force = true
-
+# Redirect all non-function requests to index.html for Angular SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  # Don't redirect function calls, API calls, or static assets
+  force = false
