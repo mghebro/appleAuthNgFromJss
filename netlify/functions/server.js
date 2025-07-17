@@ -1,3 +1,4 @@
+// netlify/functions/server.js
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 
@@ -13,76 +14,196 @@ const config = {
 const privateKey = process.env.APPLE_PRIVATE_KEY || "";
 const CSHARP_BACKEND_URL = process.env.CSHARP_BACKEND_URL || "https://1e94d017035f.ngrok-free.app/api/AppleService/auth/apple-callback";
 
+// Helper function to validate environment variables
+function validateEnvironment() {
+  const errors = [];
+  
+  if (!privateKey) {
+    errors.push("APPLE_PRIVATE_KEY environment variable is not set");
+  }
+  
+  if (!CSHARP_BACKEND_URL) {
+    errors.push("CSHARP_BACKEND_URL environment variable is not set");
+  }
+  
+  return errors;
+}
+
 // Helper function to generate Apple client secret
 function generateClientSecret(teamId, clientId, keyId, privateKey) {
-  const crypto = require('crypto');
-  
-  // Clean the private key
-  const cleanPrivateKey = privateKey
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s/g, '');
-  
-  const keyBuffer = Buffer.from(cleanPrivateKey, 'base64');
-  
-  const now = Math.floor(Date.now() / 1000);
-  
-  const payload = {
-    iss: teamId,
-    iat: now,
-    exp: now + (6 * 30 * 24 * 60 * 60), // 6 months
-    aud: 'https://appleid.apple.com',
-    sub: clientId
-  };
-  
-  const header = {
-    alg: 'ES256',
-    kid: keyId
-  };
-  
-  return jwt.sign(payload, keyBuffer, { 
-    algorithm: 'ES256',
-    header: header
-  });
+  try {
+    console.log('Generating client secret...');
+    
+    if (!privateKey) {
+      throw new Error('Private key is required');
+    }
+    
+    // Clean the private key - handle both formats
+    let cleanPrivateKey = privateKey
+      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+      .replace(/-----END PRIVATE KEY-----/g, '')
+      .replace(/\\n/g, '\n')
+      .replace(/\s/g, '');
+    
+    // Convert to buffer
+    const keyBuffer = Buffer.from(cleanPrivateKey, 'base64');
+    
+    const now = Math.floor(Date.now() / 1000);
+    
+    const payload = {
+      iss: teamId,
+      iat: now,
+      exp: now + (6 * 30 * 24 * 60 * 60), // 6 months
+      aud: 'https://appleid.apple.com',
+      sub: clientId
+    };
+    
+    const header = {
+      alg: 'ES256',
+      kid: keyId
+    };
+    
+    const clientSecret = jwt.sign(payload, keyBuffer, { 
+      algorithm: 'ES256',
+      header: header
+    });
+    
+    console.log('Client secret generated successfully');
+    return clientSecret;
+    
+  } catch (error) {
+    console.error('Error generating client secret:', error);
+    throw new Error(`Failed to generate client secret: ${error.message}`);
+  }
 }
 
 // Helper function to get Apple access token
 async function getAppleAccessToken(code) {
-  const clientSecret = generateClientSecret(
-    config.team_id,
-    config.client_id,
-    config.key_id,
-    privateKey
-  );
-
-  const params = new URLSearchParams({
-    client_id: config.client_id,
-    client_secret: clientSecret,
-    code: code,
-    grant_type: 'authorization_code',
-    redirect_uri: config.redirect_uri
-  });
-
   try {
+    console.log('Exchanging code for access token...');
+    
+    const clientSecret = generateClientSecret(
+      config.team_id,
+      config.client_id,
+      config.key_id,
+      privateKey
+    );
+
+    const params = new URLSearchParams({
+      client_id: config.client_id,
+      client_secret: clientSecret,
+      code: code,
+      grant_type: 'authorization_code',
+      redirect_uri: config.redirect_uri
+    });
+
     const response = await axios.post('https://appleid.apple.com/auth/token', params, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      timeout: 10000
     });
     
+    console.log('Apple token exchange successful');
     return response.data;
+    
   } catch (error) {
-    console.error('Apple token exchange error:', error.response?.data || error.message);
-    throw error;
+    console.error('Apple token exchange error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw new Error(`Apple token exchange failed: ${error.response?.data?.error_description || error.message}`);
   }
 }
 
+// Helper function to send to C# backend
+async function sendToBackend(authRequest) {
+  try {
+    console.log('Sending request to C# backend...');
+    
+    const response = await axios.post(CSHARP_BACKEND_URL, authRequest, {
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'ngrok-skip-browser-warning': 'true' // For ngrok
+      },
+      timeout: 15000 // 15 second timeout
+    });
+
+    console.log('C# backend response received successfully');
+    return response.data;
+    
+  } catch (error) {
+    console.error('C# backend error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: CSHARP_BACKEND_URL
+    });
+    
+    if (error.code === 'ECONNABORTED') {
+      throw new Error('Backend request timed out');
+    }
+    
+    if (error.response?.status === 409) {
+      throw new Error('User already exists');
+    }
+    
+    throw new Error(`Backend error: ${error.response?.data?.message || error.message}`);
+  }
+}
+
+// Helper function to parse user data
+function parseUserData(user) {
+  if (!user) return null;
+  
+  try {
+    const parsedUser = typeof user === 'string' ? JSON.parse(user) : user;
+    
+    if (parsedUser.name) {
+      const firstName = parsedUser.name.firstName || '';
+      const lastName = parsedUser.name.lastName || '';
+      return `${firstName} ${lastName}`.trim();
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('Failed to parse user data:', error);
+    return null;
+  }
+}
+
+// Helper function to create redirect URL
+function createRedirectUrl(data, isError = false) {
+  const frontendUrl = "https://mghebro-auth-test.netlify.app";
+  
+  if (isError) {
+    return `${frontendUrl}/error.html?error=${encodeURIComponent(data.message)}`;
+  }
+  
+  const accessToken = data.accessToken || data.token;
+  const email = data.email || '';
+  const name = data.name || '';
+  
+  return `${frontendUrl}/success.html?token=${encodeURIComponent(accessToken)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+}
+
+// Main handler function
 exports.handler = async (event, context) => {
+  console.log('Apple auth handler called:', {
+    method: event.httpMethod,
+    path: event.path,
+    headers: event.headers
+  });
+
   // Add CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Accept',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Content-Type': 'application/json'
   };
 
   // Handle preflight requests
@@ -94,50 +215,82 @@ exports.handler = async (event, context) => {
     };
   }
 
+  // Validate environment
+  const envErrors = validateEnvironment();
+  if (envErrors.length > 0) {
+    console.error('Environment validation failed:', envErrors);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        message: 'Server configuration error',
+        errors: envErrors
+      }),
+    };
+  }
+
+  // Handle GET requests (health check)
+  if (event.httpMethod === 'GET') {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        message: 'Apple auth service is running',
+        config: {
+          client_id: config.client_id,
+          redirect_uri: config.redirect_uri,
+          backend_url: CSHARP_BACKEND_URL
+        }
+      }),
+    };
+  }
+
+  // Handle POST requests (Apple auth callback)
   if (event.httpMethod === 'POST') {
     try {
       const body = JSON.parse(event.body || '{}');
       const { code, id_token, state, user } = body;
 
-      console.log('Received Apple auth callback:', { code: !!code, id_token: !!id_token, user: !!user });
+      console.log('Received Apple auth callback:', { 
+        hasCode: !!code, 
+        hasIdToken: !!id_token, 
+        hasUser: !!user,
+        state: state 
+      });
 
+      // Validate required parameters
       if (!code) {
         return {
           statusCode: 400,
           headers,
           body: JSON.stringify({
-            message: 'Missing authorization code',
+            message: 'Missing required parameter: authorization code',
           }),
         };
       }
 
       // Get access token from Apple
       const tokenResponse = await getAppleAccessToken(code);
-      console.log('Token response received from Apple');
 
       // Decode the ID token
       const decodedIdToken = jwt.decode(tokenResponse.id_token);
       if (!decodedIdToken) {
-        throw new Error('Failed to decode ID token');
+        throw new Error('Failed to decode ID token from Apple');
       }
 
+      console.log('Decoded ID token:', {
+        sub: decodedIdToken.sub,
+        email: decodedIdToken.email,
+        email_verified: decodedIdToken.email_verified
+      });
+
+      // Extract user information
       const userAppleId = decodedIdToken.sub;
       const userEmail = decodedIdToken.email;
       const isPrivateEmail = userEmail?.includes('@privaterelay.appleid.com') || false;
+      const userName = parseUserData(user);
 
-      let userName = null;
-      if (user) {
-        try {
-          const parsedUser = JSON.parse(user);
-          if (parsedUser.name) {
-            userName = `${parsedUser.name.firstName || ''} ${parsedUser.name.lastName || ''}`.trim();
-          }
-        } catch (e) {
-          console.warn('Failed to parse user data:', e);
-        }
-      }
-
-      // Prepare request for your C# backend
+      // Prepare request for C# backend
       const authRequest = {
         code: code,
         redirectUri: config.redirect_uri,
@@ -148,61 +301,59 @@ exports.handler = async (event, context) => {
         refreshToken: tokenResponse.refresh_token,
         accessToken: tokenResponse.access_token,
         emailVerified: decodedIdToken.email_verified || false,
-        authTime: new Date(decodedIdToken.auth_time * 1000).toISOString(),
+        authTime: new Date((decodedIdToken.auth_time || decodedIdToken.iat) * 1000).toISOString(),
         tokenType: tokenResponse.token_type,
         expiresIn: tokenResponse.expires_in,
+        state: state
       };
 
-      console.log('Sending request to C# backend...');
-
-      // Send to your C# backend
-      const response = await axios.post(CSHARP_BACKEND_URL, authRequest, {
-        headers: { 
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true' // For ngrok
-        },
-        timeout: 10000 // 10 second timeout
+      console.log('Prepared auth request:', {
+        appleId: authRequest.appleId,
+        email: authRequest.email,
+        name: authRequest.name,
+        isPrivateEmail: authRequest.isPrivateEmail
       });
 
-      console.log('C# backend response received');
+      // Send to C# backend
+      const backendResponse = await sendToBackend(authRequest);
 
-      // For successful authentication, redirect to frontend with token
-      const frontendUrl = "https://mghebro-auth-test.netlify.app";
-      const accessToken = response.data.accessToken || response.data.token;
-      
-      if (accessToken) {
-        const successUrl = `${frontendUrl}/success.html?token=${accessToken}&email=${encodeURIComponent(response.data.email || '')}`;
+      // Handle successful response
+      if (backendResponse) {
+        const redirectUrl = createRedirectUrl(backendResponse);
         
         return {
           statusCode: 302,
           headers: {
             ...headers,
-            Location: successUrl,
+            Location: redirectUrl,
           },
         };
       } else {
-        // Return JSON response if no redirect is needed
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            data: response.data
-          }),
-        };
+        throw new Error('Empty response from backend');
       }
 
     } catch (error) {
       console.error('Apple auth error:', error);
       
-      // Check if it's a 409 (user already exists) from your backend
-      if (error.response?.status === 409) {
+      // Handle specific error cases
+      if (error.message.includes('User already exists')) {
+        const redirectUrl = createRedirectUrl({ message: 'User already exists' }, true);
         return {
-          statusCode: 409,
+          statusCode: 302,
+          headers: {
+            ...headers,
+            Location: redirectUrl,
+          },
+        };
+      }
+
+      if (error.message.includes('Backend request timed out')) {
+        return {
+          statusCode: 504,
           headers,
           body: JSON.stringify({
-            message: "User already exists",
-            error: error.response.data?.message || "Conflict"
+            message: "Backend service timeout",
+            error: "The authentication service is temporarily unavailable"
           }),
         };
       }
@@ -211,17 +362,21 @@ exports.handler = async (event, context) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({
-          message: "Server error during Apple auth callback",
+          message: "Authentication failed",
           error: error.message,
-          details: error.response?.data || null
+          timestamp: new Date().toISOString()
         }),
       };
     }
   }
 
+  // Method not allowed
   return {
     statusCode: 405,
     headers,
-    body: JSON.stringify({ message: "Method Not Allowed" }),
+    body: JSON.stringify({ 
+      message: "Method Not Allowed",
+      allowed: ["GET", "POST", "OPTIONS"]
+    }),
   };
 };
